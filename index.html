@@ -313,15 +313,40 @@ body { background: var(--bg); color: var(--text); font-family: -apple-system, Bl
 <div class="sheet" id="sheet">
   <div class="sheet-handle"></div>
   <div class="sheet-title" id="sheet-title">Log set</div>
-  <div class="sheet-section">
-    <div class="sheet-label">Weight used</div>
-    <input class="sheet-weight-input" type="text" id="sheet-weight" placeholder="e.g. 23kg">
+
+  <!-- Exercise set content -->
+  <div id="sheet-ex-content">
+    <div class="sheet-section">
+      <div class="sheet-label">Weight used</div>
+      <input class="sheet-weight-input" type="text" id="sheet-weight" placeholder="e.g. 23kg">
+    </div>
+    <div class="sheet-section">
+      <div class="sheet-label" id="sheet-reps-label">Reps completed</div>
+      <div class="reps-grid" id="reps-grid"></div>
+    </div>
   </div>
-  <div class="sheet-section">
-    <div class="sheet-label" id="sheet-reps-label">Reps completed</div>
-    <div class="reps-grid" id="reps-grid"></div>
+
+  <!-- Cardio segment content -->
+  <div id="sheet-cardio-content" style="display:none">
+    <div class="sheet-section">
+      <div class="cardio-inputs">
+        <div class="cardio-input-group">
+          <div class="cardio-input-label">Duration (min)</div>
+          <input class="cardio-sheet-input" id="cseg-duration" type="number" placeholder="10">
+        </div>
+        <div class="cardio-input-group">
+          <div class="cardio-input-label">Speed (km/h)</div>
+          <input class="cardio-sheet-input" id="cseg-speed" type="number" step="0.1" placeholder="6.5">
+        </div>
+        <div class="cardio-input-group">
+          <div class="cardio-input-label">Incline (%)</div>
+          <input class="cardio-sheet-input" id="cseg-incline" type="number" step="0.5" placeholder="0">
+        </div>
+      </div>
+    </div>
   </div>
-  <button class="sheet-confirm-btn" onclick="confirmSet()">Log set</button>
+
+  <button class="sheet-confirm-btn" id="sheet-confirm-btn" onclick="confirmSet()">Log set</button>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -497,18 +522,18 @@ function renderCardioCard(){
             <div>${s.duration} min @ ${s.speed} km/h</div>
             ${s.incline>0?`<div class="cardio-segment-sub">${s.incline}% incline</div>`:''}
           </div>
-          <button class="cardio-segment-del" onclick="deleteCardioSeg(${i})">×</button>
+          <button class="cardio-segment-del" onclick="event.stopPropagation();deleteCardioSeg(${i})">×</button>
         </div>`).join('')}
     </div>
     <div class="cardio-total">Total: ${totalMins} min</div>` : '';
-  return `<div class="cardio-card ${hasSegs?'has-segments':''}">
+  return `<div class="cardio-card ${hasSegs?'has-segments':''}" onclick="openCardioSheet()" style="cursor:pointer">
     <div class="cardio-top">
       <div class="cardio-icon">🏃</div>
       <div class="cardio-info">
         <div class="cardio-name">Treadmill</div>
-        <div class="cardio-detail">${hasSegs ? totalMins+' min logged' : 'No segments yet'}</div>
+        <div class="cardio-detail">${hasSegs ? totalMins+' min logged — tap to add more' : 'Tap to log cardio'}</div>
       </div>
-      <button class="cardio-add-btn" onclick="openCardioSheet()">+ Add</button>
+      <button class="cardio-add-btn" onclick="event.stopPropagation();openCardioSheet()">+ Add</button>
     </div>
     ${segHTML}
   </div>`;
@@ -517,25 +542,12 @@ function renderCardioCard(){
 function openCardioSheet(){
   document.getElementById('sheet-title').textContent = 'Log cardio segment';
   document.getElementById('sheet').dataset.mode = 'cardio';
-  document.getElementById('reps-grid').innerHTML = '';
-  document.getElementById('sheet-reps-label').textContent = '';
-  // Build cardio inputs inside sheet-section weight area
-  document.querySelector('.sheet-section').innerHTML = `
-    <div class="cardio-inputs">
-      <div class="cardio-input-group">
-        <div class="cardio-input-label">Duration (min)</div>
-        <input class="cardio-sheet-input" id="cseg-duration" type="number" placeholder="10" value="">
-      </div>
-      <div class="cardio-input-group">
-        <div class="cardio-input-label">Speed (km/h)</div>
-        <input class="cardio-sheet-input" id="cseg-speed" type="number" step="0.1" placeholder="${settings.speed}" value="${settings.speed}">
-      </div>
-      <div class="cardio-input-group">
-        <div class="cardio-input-label">Incline (%)</div>
-        <input class="cardio-sheet-input" id="cseg-incline" type="number" step="0.5" placeholder="0" value="${settings.incline||0}">
-      </div>
-    </div>`;
+  document.getElementById('sheet-ex-content').style.display = 'none';
+  document.getElementById('sheet-cardio-content').style.display = 'block';
   document.getElementById('sheet-confirm-btn').textContent = 'Add segment';
+  document.getElementById('cseg-speed').value = settings.speed;
+  document.getElementById('cseg-incline').value = settings.incline || 0;
+  document.getElementById('cseg-duration').value = '';
   document.getElementById('sheet-overlay').classList.add('show');
   document.getElementById('sheet').classList.add('show');
 }
@@ -655,8 +667,6 @@ function confirmSet(){
     session.cardio_segs = segs;
     sv('wt_sess',session);
     closeSheet();
-    // Restore sheet for exercise use
-    document.querySelector('.sheet-section').innerHTML = `<div class="sheet-label">Weight used</div><input class="sheet-weight-input" type="text" id="sheet-weight" placeholder="e.g. 23kg">`;
     document.getElementById('sheet-confirm-btn').textContent = 'Log set';
     renderToday();
     return;
@@ -676,6 +686,11 @@ function confirmSet(){
 function closeSheet(){
   document.getElementById('sheet-overlay').classList.remove('show');
   document.getElementById('sheet').classList.remove('show');
+  // Restore exercise sheet content
+  document.getElementById('sheet-ex-content').style.display = 'block';
+  document.getElementById('sheet-cardio-content').style.display = 'none';
+  document.getElementById('sheet-confirm-btn').textContent = 'Log set';
+  document.getElementById('sheet').dataset.mode = 'exercise';
   sheetCtx = null;
 }
 
