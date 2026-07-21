@@ -219,13 +219,13 @@ body { background: var(--bg); color: var(--text); font-family: -apple-system, Bl
     </div>
     <div class="progress-track"><div class="progress-fill" id="prog-fill" style="width:0%"></div></div>
   </div>
-  <div class="section-head">Cardio</div>
-  <div id="cardio-area"></div>
   <div class="section-head">Strength</div>
   <div id="ex-list"></div>
+  <div class="section-head">Cardio</div>
+  <div id="cardio-area"></div>
   <div class="section-head">Session notes</div>
   <div class="session-notes-wrap">
-    <textarea class="session-notes-input" id="session-notes" placeholder="How did today's session feel?" onblur="saveSessionNote()"></textarea>
+    <textarea class="session-notes-input" id="session-notes" placeholder="Insert session notes here" onblur="saveSessionNote()"></textarea>
   </div>
   <div class="bottom-btn-row">
     <button class="action-btn primary" onclick="saveHistory()">Save session</button>
@@ -450,6 +450,7 @@ function renderExCard(ex){
       </div>
       <div class="ex-summary">
         <div class="ex-weight-label">${currentWeight}</div>
+        ${ex.prev && ex.prev !== '—' ? `<div class="ex-sets-summary">prev: ${ex.prev}</div>` : ''}
         <div class="ex-sets-summary">${setsSummary}</div>
       </div>
       <span class="ex-chevron ${open?'open':''}">›</span>
@@ -469,7 +470,7 @@ function renderExCard(ex){
         </div>
         <div class="note-area">
           <div class="note-label-sm">Notes</div>
-          <textarea class="note-input" id="note_${ex.id}" placeholder="How did it feel?" onblur="saveNote('${ex.id}')">${session[ex.id+'_note']||''}</textarea>
+          <textarea class="note-input" id="note_${ex.id}" placeholder="Insert notes here" onblur="saveNote('${ex.id}')">${session[ex.id+'_note']||''}</textarea>
         </div>
       </div>
     </div>
@@ -577,7 +578,6 @@ function handleSetTap(exId, setIndex){
 
   document.getElementById('sheet-overlay').classList.add('show');
   document.getElementById('sheet').classList.add('show');
-  setTimeout(()=>{ document.getElementById('sheet-weight').focus(); }, 300);
 }
 
 function selectRep(r, target){
