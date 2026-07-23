@@ -218,8 +218,11 @@ body { background: var(--bg); color: var(--text); font-family: -apple-system, Bl
 <!-- TODAY -->
 <div class="view active" id="view-today">
   <div class="page-header">
-    <div class="page-title" id="today-day"></div>
-    <div class="page-sub" id="today-date"></div>
+    <div>
+      <div class="page-title" id="today-day"></div>
+      <div class="page-sub" id="today-date"></div>
+    </div>
+    <input type="date" id="session-date-picker" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:7px 10px;font-size:13px;color:var(--text);outline:none;cursor:pointer" onchange="changeSessionDate(this.value)">
   </div>
   <div class="progress-wrap">
     <div class="progress-top">
@@ -411,11 +414,13 @@ function switchView(v){
 
 // ── TODAY ─────────────────────────────────────────────────────────────────────
 function renderToday(){
-  const now = new Date();
   const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
   const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  document.getElementById('today-day').textContent = days[now.getDay()];
-  document.getElementById('today-date').textContent = now.getDate()+' '+months[now.getMonth()];
+  const dateStr = session.sessionDate || new Date().toISOString().split('T')[0];
+  const d = new Date(dateStr + 'T12:00:00');
+  document.getElementById('today-day').textContent = days[d.getDay()];
+  document.getElementById('today-date').textContent = d.getDate()+' '+months[d.getMonth()];
+  document.getElementById('session-date-picker').value = dateStr;
 
   // Cardio
   document.getElementById('cardio-area').innerHTML = renderCardioCard();
@@ -545,11 +550,12 @@ function openCardioSheet(){
   document.getElementById('sheet-ex-content').style.display = 'none';
   document.getElementById('sheet-cardio-content').style.display = 'block';
   document.getElementById('sheet-confirm-btn').textContent = 'Add segment';
-  document.getElementById('cseg-speed').value = settings.speed;
-  document.getElementById('cseg-incline').value = settings.incline || 0;
-  document.getElementById('cseg-duration').value = '';
   document.getElementById('sheet-overlay').classList.add('show');
   document.getElementById('sheet').classList.add('show');
+  // Set values after sheet is visible
+  document.getElementById('cseg-speed').value = settings.speed != null ? settings.speed : 6.5;
+  document.getElementById('cseg-incline').value = settings.incline != null ? settings.incline : 0;
+  document.getElementById('cseg-duration').value = '';
 }
 
 function deleteCardioSeg(i){
@@ -695,9 +701,16 @@ function closeSheet(){
 }
 
 // ── SAVE / RESET ──────────────────────────────────────────────────────────────
+function changeSessionDate(val){
+  session.sessionDate = val;
+  sv('wt_sess',session);
+  renderToday();
+}
+
 function saveHistory(){
-  const now = new Date();
-  const label = now.toLocaleDateString('en-AU',{weekday:'short',day:'numeric',month:'short',year:'numeric'});
+  const dateStr = session.sessionDate || new Date().toISOString().split('T')[0];
+  const d = new Date(dateStr + 'T12:00:00');
+  const label = d.toLocaleDateString('en-AU',{weekday:'short',day:'numeric',month:'short',year:'numeric'});
   const entry = { date: label, notes: session.notes||'', cardio: null, exercises:[] };
   const segs = session.cardio_segs || [];
   if(segs.length) entry.cardio = segs.map(s=>s.duration+'min @ '+s.speed+'km/h'+(s.incline>0?' ('+s.incline+'% incline)':'')).join(' → ');
@@ -728,7 +741,8 @@ function renderHistory(){
     document.getElementById('history-list').innerHTML='<div class="empty-state">No sessions yet.<br>Complete a workout and tap <strong>Save session</strong>.</div>';
     return;
   }
-  document.getElementById('history-list').innerHTML = history.map(h=>{
+  document.getElementById('history-list').innerHTML = history.map((h,i)=>{
+    const open = h._editOpen;
     let rows = '';
     if(h.cardio) rows+=`<div class="history-row"><span class="history-ex-name">Cardio</span><span class="history-sets">${h.cardio}</span></div>`;
     h.exercises.forEach(ex=>{
@@ -736,11 +750,49 @@ function renderHistory(){
       rows+=`<div class="history-row"><span class="history-ex-name">${ex.name}</span><span class="history-sets">${setsStr}</span></div>`;
     });
     return `<div class="history-item">
-      <div class="history-date">${h.date}</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <div class="history-date" style="margin-bottom:0">${h.date}</div>
+        <div style="display:flex;gap:8px">
+          <button onclick="toggleHistoryEdit(${i})" style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 10px;font-size:12px;color:var(--text2);cursor:pointer">${open?'Done':'Edit'}</button>
+          <button onclick="deleteHistory(${i})" style="background:var(--danger-dim);border:1px solid var(--danger-dim);border-radius:6px;padding:4px 10px;font-size:12px;color:var(--danger);cursor:pointer">Delete</button>
+        </div>
+      </div>
       ${h.notes?`<div class="history-note">"${h.notes}"</div>`:''}
+      ${open ? `<div style="margin-bottom:8px">
+        <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px">Date</div>
+        <input type="date" value="${h._dateRaw||''}" onchange="editHistoryDate(${i},this.value)" style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:7px 10px;font-size:13px;color:var(--text);outline:none;width:100%">
+        <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.05em;margin:8px 0 4px">Notes</div>
+        <textarea onchange="editHistoryNote(${i},this.value)" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-size:13px;color:var(--text);outline:none;resize:none;height:56px;font-family:inherit">${h.notes||''}</textarea>
+      </div>` : ''}
       ${rows}
     </div>`;
   }).join('');
+}
+
+function toggleHistoryEdit(i){
+  history[i]._editOpen = !history[i]._editOpen;
+  sv('wt_hist',history);
+  renderHistory();
+}
+
+function editHistoryDate(i, val){
+  const d = new Date(val + 'T12:00:00');
+  history[i]._dateRaw = val;
+  history[i].date = d.toLocaleDateString('en-AU',{weekday:'short',day:'numeric',month:'short',year:'numeric'});
+  sv('wt_hist',history);
+  renderHistory();
+}
+
+function editHistoryNote(i, val){
+  history[i].notes = val;
+  sv('wt_hist',history);
+}
+
+function deleteHistory(i){
+  if(!confirm('Delete this session?')) return;
+  history.splice(i,1);
+  sv('wt_hist',history);
+  renderHistory();
 }
 
 // ── SETTINGS ──────────────────────────────────────────────────────────────────
@@ -804,11 +856,16 @@ function saveExEdit(i){
 }
 
 function saveSettings(){
-  settings.duration = parseFloat(document.getElementById('s-duration').value)||30;
-  settings.speed    = parseFloat(document.getElementById('s-speed').value)||6.5;
-  settings.incline  = parseFloat(document.getElementById('s-incline').value)||0;
-  settings.sets     = parseInt(document.getElementById('s-sets').value)||3;
-  settings.reps     = parseInt(document.getElementById('s-reps').value)||12;
+  const dur  = parseFloat(document.getElementById('s-duration').value);
+  const spd  = parseFloat(document.getElementById('s-speed').value);
+  const inc  = parseFloat(document.getElementById('s-incline').value);
+  const sts  = parseInt(document.getElementById('s-sets').value);
+  const rps  = parseInt(document.getElementById('s-reps').value);
+  settings.duration = isNaN(dur) ? 30  : dur;
+  settings.speed    = isNaN(spd) ? 6.5 : spd;
+  settings.incline  = isNaN(inc) ? 0   : inc;
+  settings.sets     = isNaN(sts) ? 3   : sts;
+  settings.reps     = isNaN(rps) ? 12  : rps;
   sv('wt_cfg',settings);
   showToast('Settings saved');
 }
